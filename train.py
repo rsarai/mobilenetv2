@@ -75,10 +75,10 @@ def train(batch, epochs, num_classes, size, weights, tclasses):
         model = MobileNetv2((size, size, 1), num_classes)
 
     opt = RMSprop(learning_rate=0.9)
-    earlystop = EarlyStopping(monitor='val_accuracy', patience=30, verbose=0, mode='auto')
+    earlystop = EarlyStopping(monitor='val_accuracy', patience=10, verbose=1, mode='auto')
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-    hist = model.fit(
+    history = model.fit(
         train_generator[0], train_generator[1],
         validation_data=validation_generator,
         steps_per_epoch=count1 // batch,
@@ -90,6 +90,7 @@ def train(batch, epochs, num_classes, size, weights, tclasses):
     if not os.path.exists('model'):
         os.makedirs('model')
 
-    df = pd.DataFrame.from_dict(hist.history)
-    df.to_csv('model/hist.csv', encoding='utf-8', index=False)
+    df = pd.DataFrame.from_dict(history.history)
+    df.to_csv('model/history.csv', encoding='utf-8', index=False)
     model.save_weights('model/weights.h5')
+    return history
