@@ -74,7 +74,7 @@ def train(batch, epochs, num_classes, size, weights, tclasses):
     else:
         model = MobileNetv2((size, size, 1), num_classes)
 
-    opt = RMSprop(learning_rate=0.9)
+    opt = RMSprop()
     earlystop = EarlyStopping(monitor='val_accuracy', patience=10, verbose=1, mode='auto')
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
