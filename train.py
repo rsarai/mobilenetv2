@@ -26,11 +26,18 @@ def get_mnist_dataset():
     X_train = X_train.reshape(X_train.shape[0], 28, 28, 1)
     X_test = X_test.reshape(X_test.shape[0], 28, 28, 1)
 
+    X_val = X_train[:800]
+    y_val = y_train[:800]
+
+    X_train = X_train[800:]
+    y_train = y_train[800:]
+
     from keras.utils import to_categorical
     # convert class vectors to binary class matrices (https://github.com/keras-team/keras/blob/7a39b6c62d43c25472b2c2476bd2a8983ae4f682/examples/mnist_cnn.py#L43)
     y_train = to_categorical(y_train)
     y_test = to_categorical(y_test)
-    return (X_train, y_train), (X_test, y_test)
+    y_val = to_categorical(y_val)
+    return (X_train, y_train), (X_val, y_val), (X_test, y_test)
 
 
 def fine_tune(num_classes, weights, model):
@@ -65,8 +72,7 @@ def train(batch, epochs, num_classes, size, weights, tclasses):
         tclasses, Integer, The number of classes of pre-trained model.
     """
 
-    train_generator, validation_generator = get_mnist_dataset()
-    count1, count2 = len(train_generator[0]), len(validation_generator[0])
+    train_data, validation_data, test_data = get_mnist_dataset()
 
     if weights:
         model = MobileNetv2((size, size, 1), tclasses)
@@ -79,18 +85,19 @@ def train(batch, epochs, num_classes, size, weights, tclasses):
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
     history = model.fit(
-        train_generator[0], train_generator[1],
-        validation_data=validation_generator,
-        steps_per_epoch=count1 // batch,
-        validation_steps=count2 // batch,
+        train_data[0], train_data[1],
+        validation_data=validation_data,
+        batch_size= 500,
         epochs=epochs,
         shuffle=True,
         callbacks=[earlystop])
 
     if not os.path.exists('model'):
         os.makedirs('model')
-
     df = pd.DataFrame.from_dict(history.history)
     df.to_csv('model/history.csv', encoding='utf-8', index=False)
     model.save_weights('model/weights.h5')
+
+    predictions = model.predict(test_data, verbose=1)
+
     return history
