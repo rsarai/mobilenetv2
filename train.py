@@ -81,7 +81,7 @@ def train(batch, epochs, num_classes, size, weights, tclasses):
         model = MobileNetv2((size, size, 1), num_classes)
 
     opt = RMSprop()
-    earlystop = EarlyStopping(monitor='val_accuracy', patience=10, verbose=1, mode='auto')
+    earlystop = EarlyStopping(monitor='val_acc', patience=10, verbose=1, mode='auto')
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
     history = model.fit(
