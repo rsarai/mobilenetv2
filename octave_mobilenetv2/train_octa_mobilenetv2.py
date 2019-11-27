@@ -1,0 +1,119 @@
+"""
+Train the MobileNet V2 model
+"""
+import os
+import sys
+import time
+import argparse
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from octa_mobilenet_v2 import OctaveMobileNetv2
+from keras.optimizers import RMSprop
+from keras.callbacks import EarlyStopping
+from keras.layers import Conv2D, Reshape, Activation
+from keras.models import Model
+from keras.datasets import mnist
+
+
+def get_mnist_dataset():
+    #download mnist data and split into train and test sets
+    (X_train, y_train), (X_test, y_test) = mnist.load_data()
+
+    #reshape data to fit model
+    X_train = X_train.reshape(X_train.shape[0], 28, 28, 1)
+    X_test = X_test.reshape(X_test.shape[0], 28, 28, 1)
+
+    X_val = X_train[:800]
+    y_val = y_train[:800]
+
+    X_train = X_train[800:]
+    y_train = y_train[800:]
+
+    from keras.utils import to_categorical
+    # convert class vectors to binary class matrices (https://github.com/keras-team/keras/blob/7a39b6c62d43c25472b2c2476bd2a8983ae4f682/examples/mnist_cnn.py#L43)
+    y_train = to_categorical(y_train)
+    y_test = to_categorical(y_test)
+    y_val = to_categorical(y_val)
+    return (X_train, y_train), (X_val, y_val), (X_test, y_test)
+
+
+def fine_tune(num_classes, weights, model):
+    """Re-build model with current num_classes.
+
+    # Arguments
+        num_classes, Integer, The number of classes of dataset.
+        tune, String, The pre_trained model weights.
+        model, Model, The model structure.
+    """
+    model.load_weights(weights)
+
+    x = model.get_layer('Dropout').output
+    x = Conv2D(num_classes, (1, 1), padding='same')(x)
+    x = Activation('softmax', name='softmax')(x)
+    output = Reshape((num_classes,))(x)
+
+    model = Model(inputs=model.input, outputs=output)
+
+    return model
+
+
+def train(batch, epochs, num_classes, size, weights, tclasses):
+    """Train the model.
+
+    # Arguments
+        batch: Integer, The number of train samples per batch.
+        epochs: Integer, The number of train iterations.
+        num_classes, Integer, The number of classes of dataset.
+        size: Integer, image size.
+        weights, String, The pre_trained model weights.
+        tclasses, Integer, The number of classes of pre-trained model.
+    """
+
+    train_data, validation_data, test_data = get_mnist_dataset()
+
+    if weights:
+        model = OctaveMobileNetv2((size, size, 1), tclasses)
+        model = fine_tune(num_classes, weights, model)
+    else:
+        model = OctaveMobileNetv2((size, size, 1), num_classes)
+
+    opt = RMSprop()
+    earlystop = EarlyStopping(monitor='val_acc', patience=10, verbose=1, mode='auto')
+    model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+
+    history = model.fit(
+        train_data[0], train_data[1],
+        validation_data=validation_data,
+        batch_size= 500,
+        epochs=epochs,
+        shuffle=True,
+        callbacks=[earlystop])
+
+    if not os.path.exists('model'):
+        os.makedirs('model')
+    df = pd.DataFrame.from_dict(history.history)
+    df.to_csv('model/history.csv', encoding='utf-8', index=False)
+    model.save_weights('model/weights.h5')
+
+    plt.plot(history.history['acc'])
+    plt.plot(history.history['val_acc'])
+    plt.title('Model accuracy')
+    plt.ylabel('Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.show()
+
+    # Plot training & validation loss values
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('Model loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.show()
+
+    print(model.evaluate(test_data[0], test_data[1]))
+
+    return history
